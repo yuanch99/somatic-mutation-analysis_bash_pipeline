@@ -1,6 +1,13 @@
-#PBS -l nodes=1:ppn=10,vmem=30g,mem=30g,walltime=5:00:00
-#PBS -e ${sample}.sambamba-merge.log
-#PBS -j eo
+#!/bin/bash
+### slurm
+#SBATCH --ntasks-per-node=10
+#SBATCH --nodes=1
+#SBATCH --mem=30g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.sambamba-merge.log
+#SBATCH --output=%x.%j.sambamba-merge.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.sambamba-merge.log ${sample}.sambamba-merge.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -13,10 +20,10 @@ module load java/1.8
 #module load gatk/4.2.2.0
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # load reference path and other reference files
 # for details check script
@@ -40,7 +47,7 @@ for bam in aligned_bam/${sample}.*.sorted.bam; do
     if [[ $(samtools quickcheck $bam && echo 1) != 1 ]]; then
        echo "resubmitting previous step and increase time by 2hrs"
        wt=$(( wt + 2 ))
-       qsub -l walltime=${wt}:00:00 -v \
+       sbatch --time=${wt}:00:00 --export=\
 wt=${wt},\
 sample=${sample},\
 forward=${forward},\
@@ -78,7 +85,7 @@ else
       if [[ $(samtools quickcheck aligned_bam/${sample}.merged.bam && echo 1) != 1 ]]; then
           echo "03: Resubmitting 03 ..."
           wt=$(( wt + 2 ))
-          qsub -l walltime=${wt}:00:00 -v \
+          sbatch --time=${wt}:00:00 --export=\
 wt=${wt},\
 sample=${sample},\
 forward=${forward},\
@@ -111,7 +118,7 @@ if [[ "$check_finish" == 0 ]]; then
     wt=$(get_walltime aligned_bam/${sample}.merged.bam)
     # submit next job
     # can switch this to picards MarkDuplicate method
-    qsub -l walltime=${wt}:00:00 -v \
+    sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -127,4 +134,5 @@ ${pipeline_dir}/04_markduplicates.sambamba.markdup.sh
     echo "03: Step ${sample}.sambamba-merge.log took ${runtime} hours" | tee -a main.log
     # mv logfile
     mv ${sample}.sambamba-merge.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.sambamba-merge.log
 fi

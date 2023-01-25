@@ -26,6 +26,10 @@ Somatic and Germline Mutation Discovery Pipeline
 ©Santiago Sánchez-Ramírez, SickKids
 Contact: santiago.sanchezramirez@sickkids.ca
 
+Migrated to Slurm
+Yuan Chang
+Contact: yuan.chang@sickkids.ca
+
 Required arguments:
 
 --mode, -m              STR       Data mode. Options are: wes, wgs
@@ -194,7 +198,7 @@ if [[ ${fresh_start} == 1 ]]; then
     echo -n "[y|n]? : "
     read -r response
     if [[ "${response}" == "y" || "${response}" == "Y" || "${response}" == "yes" || "${response}" == "YES" ]]; then
-        if [[ $(qstat -u `whoami` | wc -l) > 0 ]]; then
+        if [[ $(squeue --me | wc -l) > 0 ]]; then
             echo "stoping pipeline first..."
             ${pipeline_dir}/stop_pipeline
         fi
@@ -371,7 +375,7 @@ if [[ ${skip_aln} == 0 ]]; then
     if [[ -e {2} ]]; then
       wt=$(get_walltime {2} {3});
       rg=`get_read_group_info {2} {1}`;
-      qsub -l walltime="${wt}":00:00 -v \
+      sbatch --time="${wt}":00:00 --export=\
 wt="${wt}",\
 file_list=${file_list},\
 index={#},\
@@ -471,7 +475,7 @@ else
                   TN=$(grep "^${sample},\|,${sample}$" tumors_and_normals.csv)
                   if [[ ${#TN} -gt 0 ]]; then
                     wt=$(get_walltime $(readlink -f $dir/${sample}.bqsr.bam))
-                    qsub -l walltime=${wt}:00:00 -v \
+                    sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -485,7 +489,7 @@ ${pipeline_dir}/05_run_bqsr.gatk.BaseRecalibrator.sh | tee -a main.log
                   fi
               else
                   wt=$(get_walltime $(readlink -f $dir/${sample}.bqsr.bam))
-                  qsub -l walltime=${wt}:00:00 -v \
+                  sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\

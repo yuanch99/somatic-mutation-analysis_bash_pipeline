@@ -1,7 +1,11 @@
 #!/bin/bash
-#PBS -l mem=10g,walltime=5:00:00
-#PBS -e gatk.CreateSomaticPanelOfNormals.log
-#PBS -j eo
+#SBATCH --mem=10g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.CreateSomaticPanelOfNormals.log
+#SBATCH --output=%x.%j.CreateSomaticPanelOfNormals.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.CreateSomaticPanelOfNormals.log gatk.CreateSomaticPanelOfNormals.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -15,10 +19,10 @@ module load bcftools/1.11
 module load tabix
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create tmp dir
 if [[ ! -e .tmp ]]; then
@@ -101,4 +105,5 @@ if [[ "$check_finish" == 0 ]]; then
     find all_logfiles -type f -name "*.log" -exec chmod 644 {} \;
     # move log
     mv gatk.CreateSomaticPanelOfNormals.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.CreateSomaticPanelOfNormals.log
 fi

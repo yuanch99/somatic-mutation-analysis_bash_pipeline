@@ -1,7 +1,13 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=30g,mem=30g,walltime=5:00:00
-#PBS -e ${tumor}__${normal}.CalculateContamination.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=30g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.CalculateContamination.log
+#SBATCH --output=%x.%j.CalculateContamination.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.CalculateContamination.log ${tumor}__${normal}.CalculateContamination.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -13,10 +19,10 @@ module load java/1.8
 module load samtools/1.10
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create dir for contamination
 if [[ ! -e contamination ]]; then
@@ -75,4 +81,5 @@ if [[ "$check_finish" == 0 ]]; then
     echo "06: Step ${tumor}__${normal}.CalculateContamination.log took ${runtime} hours" | tee -a main.log
     # move logfile
     mv ${tumor}__${normal}.CalculateContamination.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.CalculateContamination.log
 fi

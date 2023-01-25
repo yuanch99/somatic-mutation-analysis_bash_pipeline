@@ -1,7 +1,11 @@
 #!/bin/bash
-#PBS -l mem=10g,walltime=5:00:00
-#PBS -e ${tumor}__${normal}.FilterMutectCalls.log
-#PBS -j eo
+#SBATCH --mem=10g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.FilterMutectCalls.log
+#SBATCH --output=%x.%j.FilterMutectCalls.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.FilterMutectCalls.log ${tumor}__${normal}.FilterMutectCalls.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -15,10 +19,10 @@ module load bcftools/1.11
 module load tabix
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create tmp dir
 if [[ ! -e .tmp ]]; then
@@ -117,7 +121,7 @@ else
             # resubmit as dependency job
             # log
             echo "08: Waiting for Calculate Contamination to finish for ${tumor}__${normal}: ${jobid_cc}" | tee -a main.log
-            qsub -W depend=afterok:${jobid_cc} -v \
+            sbatch --dependency==afterok:${jobid_cc} --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -175,7 +179,7 @@ if [[ "$check_finish" == 0 ]]; then
         echo "08: Skipping Annovar for ${tumor}__${normal}" | tee -a main.log
     else
         echo "08: Submitting Annovar for ${tumor}__${normal}" | tee -a main.log
-        qsub -v \
+        sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 tissue="Somatic",\
@@ -189,7 +193,7 @@ ${pipeline_dir}/09a_variant_annotation.annovar.sh
     echo "08: FilterMutectCalls completed for ${tumor}__${normal}. Submitting VCF annotation SnpEff and Funcotator" | tee -a main.log
     # next round of jobs are submitted manually or not
     # annotate VCF file
-    qsub -v \
+    sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 tissue="Somatic",\
@@ -203,4 +207,5 @@ ${pipeline_dir}/09b_variant_annotation.snpEff-funcotator.sh
     echo "08: Step ${tumor}__${normal}.FilterMutectCalls.log took ${runtime} hours" | tee -a main.log
     # move log
     mv ${tumor}__${normal}.FilterMutectCalls.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.FilterMutectCalls.log
 fi

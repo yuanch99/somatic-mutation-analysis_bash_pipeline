@@ -1,7 +1,13 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=10g,mem=10g,walltime=5:00:00
-#PBS -e ${tumor}__${normal}.bcftools.filter.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=10g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.bcftools.filter.log
+#SBATCH --output=%x.%j.bcftools.filter.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.bcftools.filter.log ${tumor}__${normal}.bcftools.filter.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -13,10 +19,10 @@ module load samtools/1.10
 module load tabix
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create output dirs
 if [[ ! -e haplotypecaller ]]; then
@@ -91,7 +97,7 @@ if [[ "$check_finish" == 0 ]]; then
   #     fi
   # fi
   # submit annotation
-  qsub -v \
+  sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 tissue="Germline",\
@@ -105,4 +111,5 @@ ${pipeline_dir}/09b_variant_annotation.snpEff-funcotator.sh
   echo "06: Step ${tumor}__${normal}.bcftools.filter.log took ${runtime} hours" | tee -a main.log
   # move logfile
   mv ${tumor}__${normal}.bcftools.filter.log all_logfiles
+  rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.bcftools.filter.log
 fi

@@ -1,7 +1,11 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=10,vmem=30g,mem=30g
-#PBS -e ${sample}.sambamba.markdup.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=10
+#SBATCH --mem=30g
+#SBATCH --error=%x.%j.sambamba.markdup.log
+#SBATCH --output=%x.%j.sambamba.markdup.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.sambamba.markdup.log ${sample}.sambamba.markdup.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -14,13 +18,13 @@ module load java/1.8
 #module load gatk/4.2.2.0
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # add job details
-qstat -f $PBS_JOBID >> ${sample}.sambamba.markdup.log
+scontrol show job -dd $SLURM_JOB_ID >> ${sample}.sambamba.markdup.log
 
 # load reference path and other reference files
 # for details check script
@@ -60,7 +64,7 @@ else
         # add two more hours of walltime
         wt=$(( wt + 2 ))
         # resubmit previous script and exit
-        qsub -l walltime=${wt}:00:00 -v \
+        sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -86,7 +90,7 @@ if [[ "$check_finish" == 0 ]]; then
      if [[ -z $wt ]]; then
          wt=$(get_walltime preprocessed_bam/${sample}.markdup.bam)
      fi
-     qsub -l walltime=${wt}:00:00 -v \
+     sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -102,4 +106,5 @@ ${pipeline_dir}/05_run_bqsr.gatk.BaseRecalibrator.sh
      echo "04: Step ${sample}.sambamba.markdup.log took ${runtime} hours" | tee -a main.log
      # move log files to dir
      mv ${sample}.sambamba.markdup.log all_logfiles
+     rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.sambamba.markdup.log
 fi

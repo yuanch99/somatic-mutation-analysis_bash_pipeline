@@ -1,6 +1,14 @@
-#PBS -l nodes=1:ppn=1,vmem=2g,mem=2g,walltime=6:00:00
-#PBS -e ${sample}.waitforfile.${PBS_JOBID}.log
-#PBS -j eo
+#!/bin/bash
+### slurm
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=2g
+#SBATCH --time=6:00:00
+#SBATCH --error=%x.%j.waitforfile.log
+#SBATCH --output=%x.%j.waitforfile.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.waitforfile.log ${sample}.waitforfile.${SLURM_JOB_ID}.log
+
+
 # scheduler settings
 
 ############### INFO #################
@@ -24,10 +32,10 @@
 ########################
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # load reference path and other reference files
 # for details check script
@@ -46,7 +54,7 @@ timeout 19800 bash -c "file_lookup $file"
 # check if commands completes
 if [[ "$?" == 0 ]]; then
   if [[ -z $tumor ]]; then
-    qsub -v \
+    sbatch --export=\
 sample=${sample},\
 mode=${mode},\
 pipeline_dir=${pipeline_dir},\
@@ -54,7 +62,7 @@ organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/${script}
   else
-    qsub -v \
+    sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -65,11 +73,11 @@ ${pipeline_dir}/${script}
   fi
   # replace / for _ in file path
   echo "Pipeline script submitted!"
-  mv ${sample}.waitforfile.${PBS_JOBID}.log all_logfiles
+  mv ${sample}.waitforfile.${$SLURM_JOB_ID}.log all_logfiles
 # if not, keep waiting
 else
   if [[ -z $tumor ]]; then
-    next_jobid=$(qsub -v \
+    next_jobid=$(sbatch --export=\
 file=${file},\
 sample=${sample},\
 script=${script},\
@@ -77,11 +85,11 @@ mode=${mode},\
 pipeline_dir=${pipeline_dir},\
 organism=${organism},\
 genome=${genome} \
-${pipeline_dir}/wait_for_file.sh)
+${pipeline_dir}/wait_for_file.sh | sed "s/Submitted batch job //")
     echo "Still waiting!"
-    cp ${sample}.waitforfile.${PBS_JOBID}.log ${sample}.waitforfile.${next_jobid}.log
+    cp ${sample}.waitforfile.${$SLURM_JOB_ID}.log ${sample}.waitforfile.${next_jobid}.log
   else
-    qsub -v \
+    sbatch --export=\
 file=${file},\
 sample=${sample},\
 tumor=${tumor},\
@@ -93,6 +101,6 @@ organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/wait_for_file.sh
     echo "Still waiting!"
-    cp ${sample}.waitforfile.${PBS_JOBID}.log ${sample}.waitforfile.${next_jobid}.log
+    cp ${sample}.waitforfile.${SLURM_JOB_ID}.log ${sample}.waitforfile.${next_jobid}.log
   fi
 fi

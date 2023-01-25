@@ -1,7 +1,12 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=30g,mem=30g,walltime=15:00:00
-#PBS -e ${tumor}__${normal}.haplotypecaller.${index}.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=30g
+#SBATCH --time=15:00:00
+#SBATCH --error=%x.%j.haplotypecaller.log
+#SBATCH --output=%x.%j.haplotypecaller.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.haplotypecaller.log ${tumor}__${normal}.haplotypecaller.${index}.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -13,10 +18,10 @@ module load java/1.8
 module load samtools/1.10
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # log date
 echo $start
@@ -52,6 +57,7 @@ source ${pipeline_dir}/00_export_pipeline_environment.sh ${organism} ${genome} $
 #else
 # run gatk's haplotypecaller
 if [[ ! -e haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.merged.vcf ]]; then
+echo "fail to find haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.merged.vcf"
 $gatk_path/gatk --java-options "-Xmx20G -Djava.io.tmpdir=./.tmp" HaplotypeCaller \
  -I ${dir}/${tumor}.bqsr.bam \
  -I ${dir}/${normal}.bqsr.bam \
@@ -63,6 +69,7 @@ $gatk_path/gatk --java-options "-Xmx20G -Djava.io.tmpdir=./.tmp" HaplotypeCaller
  #  --create-output-bam-index \
 else
   # for $? = 0
+    echo "found haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.merged.vcf"
   ls &> /dev/null
 fi
 
@@ -89,9 +96,12 @@ if [[ "$check_finish" == 0 ]]; then
                 rm haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.[1-9]*.vcf.idx
             fi
             # log to main
+            if [[ -e haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.merged.vcf ]]; then
+                echo "06: all scattered HC calls merged for ${tumor}__${normal} - slurm." | tee -a main.log
+            fi
             echo "06: all scattered HC calls merged for ${tumor}__${normal}." | tee -a main.log
             # submit bcftools filtering
-            qsub -v \
+            sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -99,6 +109,7 @@ pipeline_dir=${pipeline_dir},\
 organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/06c_call_SNVs_and_indels.bcftools.filter.sh
+            echo "06: submitted bcftools filtering for ${tumor}__${normal}." | tee -a main.log
             # first scatter
             first_scatter_date=$(ls ${tumor}__${normal}.haplotypecaller.${index}.log ${tumor}__${normal}.haplotypecaller.[0-9]*.log | \
                    parallel 'head -2 {} | tail -1' | parallel date --date={} +%s | sort -n | parallel date --date=@{} | head -1)
@@ -109,11 +120,13 @@ ${pipeline_dir}/06c_call_SNVs_and_indels.bcftools.filter.sh
             cat $(ls ${tumor}__${normal}.haplotypecaller.${index}.log all_logfiles/${tumor}__${normal}.haplotypecaller.[0-9]*.log | sort -V) > all_logfiles/${tumor}__${normal}.haplotypecaller.log
             rm $(ls all_logfiles/${tumor}__${normal}.haplotypecaller.[0-9]*.log )
             rm ${tumor}__${normal}.haplotypecaller.${index}.log
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.haplotypecaller.log
         else
             # log to main
             echo "06: ${tumor}__${normal} HaplotypeCaller variant calling completed for interval ${index}." | tee -a main.log
             # move logfile
             mv ${tumor}__${normal}.haplotypecaller.${index}.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.haplotypecaller.log
         fi
     # no scattered logfiles found
     else
@@ -124,6 +137,7 @@ ${pipeline_dir}/06c_call_SNVs_and_indels.bcftools.filter.sh
             echo "06: ${tumor}__${normal} HaplotypeCaller variant calling completed for interval ${index}." | tee -a main.log
             # move logfile
             mv ${tumor}__${normal}.haplotypecaller.${index}.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.haplotypecaller.log
         fi
     fi
 fi
