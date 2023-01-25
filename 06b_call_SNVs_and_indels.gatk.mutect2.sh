@@ -1,7 +1,13 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=30g,mem=30g,walltime=15:00:00
-#PBS -e ${tumor}__${normal}.mutect2.${index}.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=30g
+#SBATCH --time=15:00:00
+#SBATCH --error=%x.%j.mutect2.log
+#SBATCH --output=%x.%j.mutect2.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.mutect2.log ${tumor}__${normal}.mutect2.${index}.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -15,10 +21,10 @@ module load bcftools/1.11
 module load tabix
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # log start
 echo $start
@@ -220,7 +226,7 @@ if [[ "$check_finish" == 0 ]]; then
                 total_vcfs=$(ls mutect2/*.mutect2.pon.merged.vcf.gz | grep "${samples/ /\|/}" | wc -l)
                 if [[ ${total_samples} == ${total_vcfs} ]]; then
                     # submit last PoN job
-                    qsub -v \
+                    sbatch --export=\
 mode=${mode},\
 pipeline_dir=${pipeline_dir},\
 organism=${organism},\
@@ -236,7 +242,7 @@ ${pipeline_dir}/07_pon.gatk.CreateSomaticPanelOfNormals.sh
             else
                 echo "06: Moving to read-orientation for ${tumor}__${normal}." | tee -a main.log
                 # submit read orientation analysis
-                qsub -v \
+                sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -263,7 +269,7 @@ ${pipeline_dir}/07_read_orientation.gatk.LearnReadOrientationModel.sh
                 else
                     echo "06: Normal is PON or no gnomad resource (null) for ${tumor}." | tee -a main.log
                 fi
-                qsub -v \
+                sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 mode=${mode},\
@@ -284,11 +290,13 @@ ${pipeline_dir}/06c_check_crosscontamination.gatk.CalculateContamination.sh | te
             cat $(ls ${tumor}__${normal}.mutect2.${index}.log all_logfiles/${tumor}__${normal}.mutect2.[0-9]*.log | sort -V) > all_logfiles/${tumor}__${normal}.mutect2.log
             rm $(ls all_logfiles/${tumor}__${normal}.mutect2.[0-9]*.log )
             rm ${tumor}__${normal}.mutect2.${index}.log
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.mutect2.log
         else
             # log to main
             echo "06: ${tumor}__${normal} Mutect2 variant calling completed for interval ${index}." | tee -a main.log
             # move logfile
             mv ${tumor}__${normal}.mutect2.${index}.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.mutect2.log
         fi
     # no scattered logfiles found
     else
@@ -299,6 +307,7 @@ ${pipeline_dir}/06c_check_crosscontamination.gatk.CalculateContamination.sh | te
             echo "06: ${tumor}__${normal} Mutect2 variant calling completed for interval ${index}." | tee -a main.log
             # move logfile
             mv ${tumor}__${normal}.mutect2.${index}.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.mutect2.log
         fi
     fi
 fi

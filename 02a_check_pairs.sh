@@ -1,8 +1,12 @@
-#PBS -l nodes=1:ppn=10,vmem=60g,mem=60g
-#PBS -e ${sample}.${index}.checkpairs.log
-#PBS -j eo
+#!/bin/bash
+### slurm
+#SBATCH --ntasks-per-node=10
+#SBATCH --nodes=1
+#SBATCH --mem=60G
+#SBATCH --error=%x.%j.checkpairs.log
+#SBATCH --output=%x.%j.checkpairs.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.checkpairs.log ${sample}.${index}.checkpairs.log
 # scheduler settings
-
 # set date to calculate running time
 start=$(date)
 
@@ -12,10 +16,10 @@ module load samtools/1.10
 module load bwa/0.7.17
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # make directories
 # create log dir
@@ -30,7 +34,7 @@ fi
 
 # get walltime if not set
 if [[ -z $wt ]]; then
-    wt=$(qstat -f $PBS_JOBID | sed -rn 's/.*Resource_List.walltime = (.*)/\1/p' | sed 's/:.*//')
+    wt=$(scontrol show job -dd $SLURM_JOB_ID | sed -rn 's/.*TimeLimit=(.*)/\1/p' | sed 's/:.*//')
 fi
 
 # load reference path and other reference files
@@ -56,7 +60,7 @@ if [[ ${#forward} -gt 0 && ${#reverse} -gt 0 ]]; then
           # calculate new walltime and read group
           wt=$(get_walltime $new_forward $new_reverse)
           # submit new jobs
-          qsub -l walltime="${wt}":00:00 -v \
+          sbatch --time="${wt}":00:00 --export=\
 wt="${wt}",\
 file_list=".tmp/${sample}_file_list.csv",\
 index=${index},\
@@ -71,7 +75,7 @@ aln_only=${aln_only} \
 ${pipeline_dir}/02b_align_and_sort_bam_to_ref.bwa.sh
           # for singletons
           wt=$(get_walltime $singletons)
-          qsub -l walltime="${wt}":00:00 -v \
+          sbatch --time="${wt}":00:00 --export=\
 wt="${wt}",\
 file_list=".tmp/${sample}_file_list.csv",\
 index="${index}s",\
@@ -90,7 +94,7 @@ ${pipeline_dir}/02b_align_and_sort_bam_to_ref.bwa.sh
           singletons=".tmp/${sample}.${index}.S.fastq.gz"
           rm $new_forward $new_reverse $singletons
           # proceed normally
-          qsub -l walltime="${wt}":00:00 -v \
+          sbatch --time="${wt}":00:00 --export=\
 wt="${wt}",\
 file_list="$file_list",\
 index=${index},\
@@ -110,7 +114,7 @@ ${pipeline_dir}/02b_align_and_sort_bam_to_ref.bwa.sh
    fi
 else
     # submit as single ended
-     qsub -l walltime="${wt}":00:00 -v \
+     sbatch --time="${wt}":00:00 --export=\
 wt="${wt}",\
 file_list="$file_list",\
 index=${index},\
@@ -133,4 +137,5 @@ if [[ "$?" == 0 ]]; then
     echo "02: Step ${sample}.${index}.checkpairs.log took ${runtime} hours" | tee -a main.log
     # move log
     mv ${sample}.${index}.checkpairs.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.checkpairs.log
 fi

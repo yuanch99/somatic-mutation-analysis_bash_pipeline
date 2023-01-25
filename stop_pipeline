@@ -4,9 +4,9 @@ module load parallel/20210322
 
 quit_job(){
    job=$1
-   qstat ${job} &> /dev/null || (echo "cleared: ${job}" && (ls | grep "${RANDOM}") ) && \
-   (qstat ${job} | tail -1 | grep -o " [RQH] " &> /dev/null && \
-   ( qdel ${job} && echo "stopped: ${job}" ) || echo "completed: ${job}")
+   squeue -j ${job} &> /dev/null || (echo "cleared: ${job}" && (ls | grep "${RANDOM}") ) && \
+   (squeue -j ${job} | tail -1 | grep -o " [RQH] " &> /dev/null && \
+   ( scancel ${job} && echo "stopped: ${job}" ) || echo "completed: ${job}")
 }
 export -f quit_job
 

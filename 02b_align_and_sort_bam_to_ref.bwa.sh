@@ -1,6 +1,12 @@
-#PBS -l nodes=1:ppn=10,vmem=60g,mem=60g
-#PBS -e ${sample}.${index}.bwa.log
-#PBS -j eo
+#!/bin/bash
+### slurm
+#SBATCH --ntasks-per-node=10
+#SBATCH --nodes=1
+#SBATCH --mem=60G
+#SBATCH --error=%x.%j.bwa.log
+#SBATCH --output=%x.%j.bwa.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.bwa.log ${sample}.${index}.bwa.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -12,18 +18,18 @@ module load samtools/1.10
 module load bwa/0.7.17
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # get walltime if not set
 if [[ -z $wt ]]; then
-    wt=$(qstat -f $PBS_JOBID | sed -rn 's/.*Resource_List.walltime = (.*)/\1/p' | sed 's/:.*//')
+    wt=$(scontrol show job -dd $SLURM_JOB_ID | sed -rn 's/.*TimeLimit=(.*)/\1/p' | sed 's/:.*//')
 fi
 
 # write job details to log
-qstat -f $PBS_JOBID
+control show job -dd $SLURM_JOB_ID
 
 # load reference path and other reference files
 # for details check script
@@ -56,7 +62,7 @@ if [[ -e "aligned_bam/${sample}.${index}.bam" ]]; then
        echo "resubmitting step and increase time by 2 hrs"
        wt=$(( wt + 2 ))
        rm aligned_bam/${sample}.${index}.bam
-       qsub -l walltime=${wt}:00:00 -v \
+       sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 forward=${forward},\
 reverse=${reverse},\
@@ -128,7 +134,7 @@ if [[ "$check_finish" == 0 ]]; then
     if [[ "$?" == 0 && "${expected_bams}" == "${found_sorted_bams}" ]]; then
         # submit next job
         # can switch this to picards MarkDuplicate method
-        qsub -l walltime=${wt}:00:00 -v \
+        sbatch --time=${wt}:00:00 --export=\
 wt=${wt},\
 sample=${sample},\
 forward=${forward},\
@@ -147,4 +153,5 @@ ${pipeline_dir}/03_merge_bams.sambamba.sh
     echo "02: Step ${sample}.${index}.bwa.log took ${runtime} hours" | tee -a main.log
     # move logfile
     mv ${sample}.${index}.bwa.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.bwa.log
 fi

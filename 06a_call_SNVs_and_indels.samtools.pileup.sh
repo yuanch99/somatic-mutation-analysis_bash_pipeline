@@ -1,7 +1,12 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=30g,mem=30g,walltime=12:00:00
-#PBS -e ${sample}.VarScan.pileup.${index}.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=30g
+#SBATCH --time=12:00:00
+#SBATCH --output=%x.%j.VarScan.pileup.log
+#SBATCH --error=%x.%j.VarScan.pileup.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.VarScan.pileup.log ${sample}.VarScan.pileup.${index}.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -13,10 +18,10 @@ module load parallel/20210322
 module load samtools/1.10
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # print start date
 echo $start
@@ -95,7 +100,7 @@ if [[ "$check_finish" == 0 ]]; then
                                 echo "06: VarScan pileup took ${runtime} hours for ${sample}" | tee -a main.log
                                 # log to main
                                 # submit calling step
-                                qsub -v \
+                                sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -107,7 +112,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.varscan.sh
                                 # log
                                 echo "06: waiting for normal ${normal} pileup to finish." | tee -a main.log
                                 # wait for file
-                                qsub -v \
+                                sbatch --export=\
 file="varscan/pileups/${normal}.pileup",\
 sample=${tumor},\
 tumor=${tumor},\
@@ -158,5 +163,6 @@ ${pipeline_dir}/wait_for_file.sh
         echo "06: pileup finished for ${sample} interval ${index}." | tee -a main.log
         # mv log and merge pileup logs
         mv ${sample}.VarScan.pileup.${index}.log all_logfiles
+        rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.VarScan.pileup.log
     fi
 fi

@@ -1,7 +1,12 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=1,vmem=10g,mem=10g,walltime=8:00:00
-#PBS -e ${tumor}__${normal}.annotation-snpeff-funcotator.${tissue}.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=10g
+#SBATCH --time=8:00:00
+#SBATCH --error=%x.%j.snpeff-funcotator.log
+#SBATCH --output=%x.%j.snpeff-funcotator.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.snpeff-funcotator.log ${tumor}__${normal}.annotation-snpeff-funcotator.${tissue}.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -16,10 +21,10 @@ module load tabix
 module load parallel/20210322
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create output dirs
 if [[ ! -e vcf/snpEff ]]; then
@@ -271,7 +276,7 @@ if [[ "$check_finish" == 0 ]]; then
     echo "09: ${tissue} annotation with SnpEff and Funcotator completed for ${tumor}__${normal}." | tee -a main.log
     # run analyses
     # submit last step
-    qsub -v \
+    sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 tissue=${tissue},\
@@ -285,4 +290,5 @@ ${pipeline_dir}/10_run_analyses.signatures_and_TBM.sh
     echo "09: ${tumor}__${normal}.annotation-snpeff-funcotator.${tissue}.log took ${runtime} hours" | tee -a main.log
     # move logfile
     mv ${tumor}__${normal}.annotation-snpeff-funcotator.${tissue}.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.snpeff-funcotator.log
 fi

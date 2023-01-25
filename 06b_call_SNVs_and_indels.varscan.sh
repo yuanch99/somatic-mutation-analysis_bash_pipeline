@@ -1,7 +1,13 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=10,vmem=30g,mem=30g,walltime=12:00:00
-#PBS -e ${tumor}__${normal}.VarScan.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=30g
+#SBATCH --time=12:00:00
+#SBATCH --error=%x.%j.VarScan.log
+#SBATCH --output=%x.%j.VarScan.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.VarScan.log ${tumor}__${normal}.VarScan.log
+
+
 # scheduler settings
 
 # set date to calculate running time
@@ -17,10 +23,10 @@ module load samtools/1.10
 module load tabix
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create output dirs
 if [[ ! -e varscan ]]; then
@@ -111,7 +117,7 @@ else
   else
       rm varscan/${tumor}__${normal}.varscan.all.Germline.hc.wes.vcf.gz
       # submit calling step
-      qsub -v \
+      sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -140,7 +146,7 @@ if [[ "$check_finish" == 0 ]]; then
     #     fi
     # fi
     # submit annotation
-    qsub -v \
+    sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 tissue="Germline",\
@@ -154,4 +160,5 @@ ${pipeline_dir}/09b_variant_annotation.snpEff-funcotator.sh
     echo "06: Step ${tumor}__${normal}.VarScan.log took ${runtime} hours" | tee -a main.log
     # move logfile
     mv ${tumor}__${normal}.VarScan.log all_logfiles
+    rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.VarScan.log
 fi

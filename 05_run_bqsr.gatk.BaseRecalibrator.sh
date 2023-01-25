@@ -1,7 +1,11 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=12,vmem=30g,mem=30g
-#PBS -e ${sample}.BQSR.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=12
+#SBATCH --mem=30g
+#SBATCH --error=%x.%j.BQSR.log
+#SBATCH --output=%x.%j.BQSR.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log ${sample}.BQSR.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -14,13 +18,13 @@ module load samtools/1.10
 module load parallel/20210322
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # write job details to log
-qstat -f $PBS_JOBID >> ${sample}.BQSR.log
+scontrol show job -dd $SLURM_JOB_ID >> ${sample}.BQSR.log
 
 # create dir for BQSR
 # and check if bam dir exists
@@ -77,8 +81,9 @@ if [[ -e ${dir}/${sample}.bqsr.bam ]]; then
             #    rm unmapped_bam/${sample}.*
             #fi
             mv ${sample}.BQSR.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
             # submit next job
-            qsub -l walltime=${wt}:00:00 -v \
+            sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -95,7 +100,7 @@ ${pipeline_dir}/05_run_bqsr.gatk.BaseRecalibrator.sh
         rm ${dir}/${sample}.bqsr.*
         echo "05: Resubmitting 05 and increasing time by 2 hrs (${sample})" | tee -a main.log
         wt=$(( wt + 2 ))
-        qsub -l walltime=${wt}:00:00 -v \
+        sbatch --time=${wt}:00:00 --export=\
 sample=${sample},\
 wt=${wt},\
 mode=${mode},\
@@ -109,6 +114,7 @@ ${pipeline_dir}/05_run_bqsr.gatk.BaseRecalibrator.sh
 else
 
 # run gatl's BaseRecalibrator
+echo "05: Running BaseRecalibrator (${sample})" | tee -a main.log
 $gatk_path/gatk --java-options "-Xmx10G -XX:+UseParallelGC -XX:ParallelGCThreads=12 -Djava.io.tmpdir=./.tmp" BaseRecalibrator \
  -R $reference \
  -L $intervals \
@@ -149,7 +155,7 @@ if [[ "$check_finish" == 0 ]]; then
     if  [[ ${make_pon} == 0 ]]; then
         if [[ ! -e orientation/${sample}.read_orientation.summary.tsv ]]; then
             echo "05: Submitting read orientation counts for ${sample}." | tee -a main.log
-            qsub -v \
+            sbatch --export=\
 sample=${sample},\
 mode=${mode},\
 pipeline_dir=${pipeline_dir},\
@@ -183,7 +189,7 @@ ${pipeline_dir}/06d_calc_f1r2.read_orientation.sh
         # Make PoN mode
         if [[ ${make_pon} == 1 ]]; then
             # submit mutect2 jobs on 30 intervals
-            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "qsub -v \
+            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "sbatch --export=\
 tumor=null,\
 normal=${sample},\
 bed={},\
@@ -200,6 +206,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" | tee -a main.log
             # log to main
             echo "05: BQSR step for ${sample} took ${runtime} hours" | tee -a main.log
             mv ${sample}.BQSR.log all_logfiles
+            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
             if [[ -e ${sample}.baserecalibrator.txt ]]; then
                 mv ${sample}.baserecalibrator.txt all_logfiles
             fi
@@ -242,7 +249,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" | tee -a main.log
                                 if [[ ! -e haplotypecaller/${tumor}__${normal}.haplotypecaller.unfiltered.${mode}.merged.vcf ]]; then
                                     # submit HaplotypeCaller scattered runs
                                     # save a dry run of commands first
-                                    ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "qsub -v \
+                                    ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -253,7 +260,7 @@ organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.haplotypecaller.sh" > all_logfiles/${tumor}__${normal}.haplotypecaller.0.log
                                     # submit HaplotypeCaller jobs on 30 intervals
-                                    ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "qsub -v \
+                                    ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -269,7 +276,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.haplotypecaller.sh" | tee -a main.
                             if [[ ! -e mutect2/${tumor}__${normal}.mutect2.unfiltered.${mode}.merged.vcf ]]; then
                                 # submit Mutect2 scattered runs
                                 # save a dry run of commands first
-                                ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "qsub -v \
+                                ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -280,7 +287,7 @@ organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" > all_logfiles/${tumor}__${normal}.mutect2.0.log
                                 # submit mutect2 jobs on 30 intervals
-                                ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "qsub -v \
+                                ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -293,7 +300,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" | tee -a main.log
                                 echo "05: Mutect2 has started successfully for ${tumor}__${normal}." | tee -a main.log
                             else
                                 if [[ -e mutect2/f1r2/${tumor}__${normal}.read-orientation-model.tar.gz ]]; then
-                                  qsub -v \
+                                  sbatch --export=\
 tumor=${tumor},\
 normal=${normal},\
 mode=${mode},\
@@ -304,7 +311,7 @@ ${pipeline_dir}/08_filter_somatic_var.gatk.FilterMutectCalls.sh
                                   echo "05: Mutect2 vcf and read-orientation data found. Skipping to FilterMutectCalls." | tee -a main.log
                                 else
                                   echo "05: No read-orientation data. Rerunning Mutect2." | tee -a main.log
-                                  ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "qsub -v \
+                                  ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -319,7 +326,7 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" | tee -a main.log
                         # if no normal (i.e., normal is PON)
                         elif [[ "${normal}" == "PON" ]]; then
                             # dry run before submitting mutect2 runs
-                            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "qsub -v \
+                            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp --dry-run "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -330,7 +337,7 @@ organism=${organism},\
 genome=${genome} \
 ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" > all_logfiles/${tumor}__${normal}.mutect2.0.log
                             # submit mutect2 jobs on 30 intervals
-                            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "qsub -v \
+                            ls $bed30intervals | grep ".bed" | parallel --tmpdir ./.tmp "sbatch --export=\
 normal=${normal},\
 tumor=${tumor},\
 bed={},\
@@ -349,9 +356,10 @@ ${pipeline_dir}/06b_call_SNVs_and_indels.gatk.mutect2.sh" | tee -a main.log
                             # log
                             echo "05: Moved ${tumor}.baserecalibrator.txt to all_logfiles" | tee -a main.log
                             mv ${tumor}.BQSR.log all_logfiles/${tumor}.BQSR.1.log
+                            rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
                             echo "05: ${tumor}.BQSR.log is now all_logfiles/${tumor}.BQSR.1.log" | tee -a main.log
                             # submit wait job
-                            qsub -v \
+                            sbatch --export=\
 file="all_logfiles/${normal}.BQSR.log",\
 sample=${tumor},\
 script=05_run_bqsr.gatk.BaseRecalibrator.sh,\
@@ -372,9 +380,11 @@ ${pipeline_dir}/wait_for_file.sh
                             echo "05: BQSR step for ${sample} took ${runtime} hours" | tee -a main.log
                             if [[ -e all_logfiles/${tumor}.BQSR.1.log ]]; then
                                 mv ${tumor}.BQSR.log all_logfiles/${tumor}.BQSR.2.log
+                                rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
                             else
                                 # log to main
                                 mv ${tumor}.BQSR.log ${tumor}.baserecalibrator.txt all_logfiles
+                                rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
                             fi
                         fi
                     done
@@ -382,6 +392,7 @@ ${pipeline_dir}/wait_for_file.sh
                     echo "05: sample $sample not in tumor column (1st)" | tee -a main.log
                     if [[ -e ${sample}.BQSR.log ]]; then
                         mv ${sample}.BQSR.log ${sample}.baserecalibrator.txt all_logfiles
+                        rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
                     fi
                     exit 0
                 fi
@@ -399,8 +410,9 @@ ${pipeline_dir}/wait_for_file.sh
         echo "05: alignment-only mode finished for ${sample}." | tee -a main.log
         # calc runtime
         runtime=$( how_long "${start}" h )
-        echo "02: Step ${sample}.BQSR.log took ${runtime} hours" | tee -a main.log
+        echo "05: Step ${sample}.BQSR.log took ${runtime} hours" | tee -a main.log
         # log to main
         mv ${sample}.BQSR.log ${sample}.baserecalibrator.txt all_logfiles
+        rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.BQSR.log
     fi
 fi

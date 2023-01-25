@@ -1,7 +1,12 @@
 #!/bin/bash
-#PBS -l nodes=1:ppn=8,vmem=10g,mem=10g,walltime=5:00:00
-#PBS -e ${tumor}__${normal}.analyses.${tissue}.log
-#PBS -j eo
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=8
+#SBATCH --mem=10g
+#SBATCH --time=5:00:00
+#SBATCH --error=%x.%j.analyses.log
+#SBATCH --output=%x.%j.analyses.log
+ln -f ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.analyses.log ${tumor}__${normal}.analyses.${tissue}.log
+
 # scheduler settings
 
 # set date to calculate running time
@@ -18,10 +23,10 @@ module load R/4.1.2
 module load parallel/20210322
 
 # set working dir
-cd $PBS_O_WORKDIR
+cd $SLURM_SUBMIT_DIR
 
 # print jobid to 1st line
-echo $PBS_JOBID
+echo $SLURM_JOB_ID
 
 # create output dirs
 if [[ ! -e analyses ]]; then
@@ -192,7 +197,7 @@ if [[ ${tissue} == "Somatic" ]]; then
 
     # get sigs into a single CSV line
     # header first
-    # sig_heads=$(echo $(cat analyses/signatures/${tumor}__${normal}.COSMIC_v3.2.signatures.csv | \
+    # sig_heads=$(echo $(cat analyses/signatures/${tumor}__${normal}.COSMIC_v3.2.signatures.csv | \ #slurm
     # awk -v FS="," '$3 ~ /^(SBS1|SBS6|SBS10a|SBS10b|SBS10c|SBS10d|SBS14|SBS15|SBS20|SBS26|SBS44)$/' | \
     # cut -d, -f3) | tr ' ' ',')
 
@@ -255,11 +260,12 @@ if [[ ${tissue} == "Somatic" ]]; then
         TMB_indels_nob=$( echo "scale=2; ${total_indels_nob}/(${coverage}/1000000)" | bc | sed 's/^\./0\./' )
 
         # output
-        if [[ ! -e analyses/no-obpriors/coverage_and_tmb_no-obpriors.csv ]]; then
-            echo "tumor,normal,obs_coverage,exp_coverage,snvs,indels,tmb_snvs,tmb_indels,"${sig_heads} > analyses/no-obpriors/coverage_and_tmb_no-obpriors.csv
+        if [[ ! -e analyses/no-obpriors/coverage_tmb_and_mmr_sigs_no-obpriors.csv ]]; then #slurm analyses/no-obpriors/coverage_and_tmb_no-obpriors.csv
+            echo "Tumor,Normal,Observed_coverage,Expected_coverage,SNV,Indels,TMB_SNV,TMB_indels,SBS1,SBS6,SBS10a,SBS10b,SBS10c,SBS10d,SBS14,SBS15,SBS20,SBS26,SBS44" > analyses/no-obpriors/coverage_tmb_and_mmr_sigs_no-obpriors.csv #slurm analyses/no-obpriors/coverage_and_tmb_no-obpriors.csv
         else
-            echo "${tumor},${normal},${coverage},${expected},${total_snvs_nob},${total_indels_nob},${TMB_snvs_nob},${TMB_indels_nob},${sig_prop_nob}" >> analyses/no-obpriors/coverage_tmb_and_mmr_sigs_no-obpriors.csv
+            echo 'already have header'
         fi
+        echo "${tumor},${normal},${coverage},${expected},${total_snvs_nob},${total_indels_nob},${TMB_snvs_nob},${TMB_indels_nob},${sig_prop_nob}" >> analyses/no-obpriors/coverage_tmb_and_mmr_sigs_no-obpriors.csv
     fi
 
     echo "10: Done calculating tumor mutation burden (TMB)." | tee -a main.log
@@ -390,5 +396,6 @@ if [[ "$check_finish" == 0 ]]; then
     # last move logfile to dir
     if [[ -e ${tumor}__${normal}.analyses.${tissue}.log ]]; then
         mv ${tumor}__${normal}.analyses.${tissue}.log all_logfiles
+        rm ${SLURM_JOB_NAME}.${SLURM_JOB_ID}.analyses.log
     fi
 fi
