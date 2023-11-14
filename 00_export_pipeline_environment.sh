@@ -2,7 +2,7 @@
 
 # add a bin directory and additional default locations
 export PATH="/hpf/largeprojects/tabori/shared/software/bin:${PATH}"
-export PERL5LIB="/hpf/largeprojects/tabori/shared/software/perl5/lib/perl5:${PERL5LIB}"
+#export PERL5LIB="/hpf/largeprojects/tabori/shared/software/perl5/lib/perl5:${PERL5LIB}"
 export PYTHONPATH="/hpf/largeprojects/tabori/shared/software/lib/python3.7:/hpf/largeprojects/tabori/shared/software/lib/python3.7/site-packages:/hpf/largeprojects/tabori/shared/software/lib/python3.7/dyn-lib:${PYTHONPATH}"
 
 # base dirs
@@ -213,8 +213,10 @@ else
             # point to recent version of gatk
             export gatk_path=${software_dir}/gatk/gatk-4.2.3.0
             # funcotator data resources
+            export funcotator_databases_s=''
             #export funcotator_databases_s=${resources_dir}/funcotator_dataSources.v1.7.20200521s
-            #export funcotator_databases_g=${resources_dir}/funcotator_dataSources.v1.7.20200521g
+            export funcotator_databases_g=''
+            #export funcotator_databases_g=''${resources_dir}/funcotator_dataSources.v1.7.20200521g
             # path to annovar database
             #export annovar_db=${resources_dir}/mousedb
         else
